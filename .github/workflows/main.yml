@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Solo Test</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+
+    body {
+      background-color: #1e272e;
+      color: #ffffff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+    }
+
+    h1 {
+      margin-bottom: 10px;
+      font-size: 2.2rem;
+      letter-spacing: 2px;
+      color: #ffa801;
+    }
+
+    .info-bar {
+      display: flex;
+      gap: 20px;
+      margin-bottom: 20px;
+      font-size: 1.1rem;
+      background: #2f3640;
+      padding: 10px 25px;
+      border-radius: 8px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+    }
+
+    .board {
+      display: grid;
+      grid-template-columns: repeat(7, 55px);
+      grid-template-rows: repeat(7, 55px);
+      gap: 8px;
+      background-color: #485460;
+      padding: 20px;
+      border-radius: 50%;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), inset 0 0 15px rgba(0, 0, 0, 0.4);
+      border: 6px solid #808e9b;
+    }
+
+    .cell {
+      width: 55px;
+      height: 55px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .cell.invalid {
+      visibility: hidden;
+    }
+
+    .cell.hole {
+      background-color: #2f3640;
+      box-shadow: inset 0 4px 8px rgba(0, 0, 0, 0.6);
+      cursor: pointer;
+    }
+
+    .cell.valid-move {
+      background-color: #0be881;
+      box-shadow: 0 0 12px #0be881;
+      animation: pulse 1s infinite;
+    }
+
+    .peg {
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 30% 30%, #ff5e57, #ff3f34 60%, #b33939);
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.5);
+      cursor: pointer;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .peg:hover {
+      transform: scale(1.08);
+    }
+
+    .peg.selected {
+      background: radial-gradient(circle at 30% 30%, #ffdd59, #ffd32a 60%, #cc8e35);
+      transform: scale(1.15);
+      box-shadow: 0 0 15px #ffd32a;
+    }
+
+    .controls {
+      margin-top: 25px;
+      display: flex;
+      gap: 15px;
+    }
+
+    button {
+      padding: 10px 22px;
+      font-size: 1rem;
+      font-weight: bold;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      background-color: #0fbcf9;
+      color: #1e272e;
+      transition: background 0.2s, transform 0.1s;
+    }
+
+    button:hover {
+      background-color: #4bcffa;
+    }
+
+    button:active {
+      transform: scale(0.96);
+    }
+
+    #message {
+      margin-top: 15px;
+      font-size: 1.2rem;
+      font-weight: bold;
+      color: #0be881;
+      min-height: 28px;
+      text-align: center;
+    }
+
+    @keyframes pulse {
+      0% { transform: scale(0.95); }
+      50% { transform: scale(1.05); }
+      100% { transform: scale(0.95); }
+    }
+  </style>
+</head>
+<body>
+
+  <h1>SOLO TEST</h1>
+
+  <div class="info-bar">
+    <div>Kalan Piyon: <span id="peg-count">32</span></div>
+    <div>Hamle: <span id="move-count">0</span></div>
+  </div>
+
+  <div class="board" id="board"></div>
+
+  <div id="message"></div>
+
+  <div class="controls">
+    <button onclick="undoMove()">Geri Al</button>
+    <button onclick="initGame()">Yeniden Başlat</button>
+  </div>
+
+  <script>
+    // -1: Oyun dışı alan, 0: Boş delik, 1: Piyon var
+    const INITIAL_BOARD = [
+      [-1, -1,  1,  1,  1, -1, -1],
+      [-1, -1,  1,  1,  1, -1, -1],
+      [ 1,  1,  1,  1,  1,  1,  1],
+      [ 1,  1,  1,  0,  1,  1,  1],
+      [ 1,  1,  1,  1,  1,  1,  1],
+      [-1, -1,  1,  1,  1, -1, -1],
+      [-1, -1,  1,  1,  1, -1, -1]
+    ];
+
+    let board = [];
+    let selected = null;
+    let validMoves = [];
+    let moveCount = 0;
+    let history = [];
+
+    const boardEl = document.getElementById('board');
+    const pegCountEl = document.getElementById('peg-count');
+    const moveCountEl = document.getElementById('move-count');
+    const messageEl = document.getElementById('message');
+
+    function initGame() {
+      board = INITIAL_BOARD.map(row => [...row]);
+      selected = null;
+      validMoves = [];
+      moveCount = 0;
+      history = [];
+      messageEl.textContent = '';
+      renderBoard();
+    }
+
+    function renderBoard() {
+      boardEl.innerHTML = '';
+      let pegs = 0;
+
+      for (let r = 0; r < 7; r++) {
+        for (let c = 0; c < 7; c++) {
+          const cell = document.createElement('div');
+          cell.classList.add('cell');
+
+          if (board[r][c] === -1) {
+            cell.classList.add('invalid');
+          } else {
+            cell.classList.add('hole');
+            const isValidTarget = validMoves.some(m => m.toR === r && m.toC === c);
+
+            if (isValidTarget) {
+              cell.classList.add('valid-move');
+              cell.onclick = () => executeMove(r, c);
+            }
+
+            if (board[r][c] === 1) {
+              pegs++;
+              const peg = document.createElement('div');
+              peg.classList.add('peg');
+              if (selected && selected.r === r && selected.c === c) {
+                peg.classList.add('selected');
+              }
+              peg.onclick = (e) => {
+                e.stopPropagation();
+                selectPeg(r, c);
+              };
+              cell.appendChild(peg);
+            }
+          }
+          boardEl.appendChild(cell);
+        }
+      }
+
+      pegCountEl.textContent = pegs;
+      moveCountEl.textContent = moveCount;
+      checkGameOver(pegs);
+    }
+
+    function selectPeg(r, c) {
+      if (selected && selected.r === r && selected.c === c) {
+        selected = null;
+        validMoves = [];
+      } else {
+        selected = { r, c };
+        validMoves = getValidMovesFor(r, c);
+      }
+      renderBoard();
+    }
+
+    function getValidMovesFor(r, c) {
+      const moves = [];
+      const directions = [
+        { dr: -2, dc: 0, midR: -1, midC: 0 }, // Yukarı
+        { dr: 2,  dc: 0, midR: 1,  midC: 0 }, // Aşağı
+        { dr: 0,  dc: -2, midR: 0, midC: -1 }, // Sol
+        { dr: 0,  dc: 2,  midR: 0, midC: 1 }  // Sağ
+      ];
+
+      for (const d of directions) {
+        const toR = r + d.dr;
+        const toC = c + d.dc;
+        const midR = r + d.midR;
+        const midC = c + d.midC;
+
+        if (toR >= 0 && toR < 7 && toC >= 0 && toC < 7) {
+          if (board[midR][midC] === 1 && board[toR][toC] === 0) {
+            moves.push({ toR, toC, midR, midC });
+          }
+        }
+      }
+      return moves;
+    }
+
+    function executeMove(toR, toC) {
+      const move = validMoves.find(m => m.toR === toR && m.toC === toC);
+      if (!move || !selected) return;
+
+      // Geri alma için mevcut durumu kaydet
+      history.push(board.map(row => [...row]));
+
+      board[selected.r][selected.c] = 0;
+      board[move.midR][move.midC] = 0;
+      board[toR][toC] = 1;
+
+      moveCount++;
+      selected = null;
+      validMoves = [];
+      renderBoard();
+    }
+
+    function undoMove() {
+      if (history.length === 0) return;
+      board = history.pop();
+      moveCount--;
+      selected = null;
+      validMoves = [];
+      messageEl.textContent = '';
+      renderBoard();
+    }
+
+    function checkGameOver(pegs) {
+      let hasAnyMove = false;
+      for (let r = 0; r < 7; r++) {
+        for (let c = 0; c < 7; c++) {
+          if (board[r][c] === 1 && getValidMovesFor(r, c).length > 0) {
+            hasAnyMove = true;
+            break;
+          }
+        }
+      }
+
+      if (!hasAnyMove) {
+        const titles = {
+          1: "BİLGİN (Mükemmel!)",
+          2: "ZEKİ",
+          3: "KURNAZ",
+          4: "BAŞARILI",
+          5: "NORMAL",
+          6: "TECRÜBESİZ",
+          7: "APTAL",
+          8: "GERİZEKALI"
+        };
+        const rank = titles[pegs] || "BEYİNSİZ (Çok fazla piyon kaldı!)";
+        messageEl.textContent = `Oyun Bitti! Kalan Piyon: ${pegs} — Dereceniz: ${rank}`;
+      }
+    }
+
+    initGame();
+  </script>
+</body>
+</html>
